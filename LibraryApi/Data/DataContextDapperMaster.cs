@@ -20,5 +20,10 @@ namespace LibraryApi.Data
             NpgsqlConnection connection = new NpgsqlConnection(_config.GetConnectionString("MasterConnection"));
             return connection.Execute(sql);
         }
+        public T? LoadDataFirstOrDefault<T>(string sql)
+        {
+            NpgsqlConnection connection = new NpgsqlConnection(_config.GetConnectionString("SlaveConnection"));
+            return connection.QueryFirstOrDefault<T>(sql);
+        }
     }
 }

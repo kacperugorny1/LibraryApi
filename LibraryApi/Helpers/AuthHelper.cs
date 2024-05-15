@@ -13,18 +13,25 @@ namespace LibraryApi.Helpers
         {
             _config = IConfig;
         }
-        public string CreateToken(int userId, bool admin = false)
+        public string CreateToken(int userId, bool admin = false, bool libraian = false, int lib_id = -1)
         {
             string? tokenKeyString = _config.GetSection("AppSettings:TokenKey").Value;
             Claim[] claims;
-            if (!admin)
-                claims = new Claim[]{
-                    new Claim("userId", userId.ToString())
-                };
-            else
+            if (admin)
                 claims = new Claim[]{
                     new Claim("userId", userId.ToString()),
-                    new Claim(ClaimTypes.Role, "Admin")
+                    new Claim(ClaimTypes.Role, "Admin"),
+                    new Claim(ClaimTypes.Role, "Librarian")
+                };
+            else if (libraian == true)
+                claims = new Claim[]{
+                    new Claim("userId", userId.ToString()),
+                    new Claim(ClaimTypes.Role, "Librarian"),
+                    new Claim("library", lib_id.ToString())
+                };
+            else  
+                claims = new Claim[]{
+                    new Claim("userId", userId.ToString())
                 };
 
             SymmetricSecurityKey tokenKey = new(
