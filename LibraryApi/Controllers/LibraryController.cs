@@ -1,8 +1,10 @@
 using LibraryApi.Models;
 using LibraryApi.Data;
+using LibraryApi.Dtos;
 
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.AspNetCore.Authorization;
 
 namespace LibraryApi.Controllers
 {
@@ -32,5 +34,21 @@ namespace LibraryApi.Controllers
             return _dapperRead.LoadData<Library>(sql);
         }
 
+        [HttpGet("GetBooks")]
+        public IEnumerable<Book> GetBooks()
+        {
+            string sql = @$"SELECT * FROM Book";
+            return _dapperRead.LoadData<Book>(sql);
+        }
+
+        [Authorize(Policy = "AdminOnly")]
+        [HttpPost("AddBook")]
+        public IActionResult addBook(BookDto book)
+        {
+            string sql = @$"INSERT INTO book(title, author, publisher, publication_year, language, category)
+                            VALUES ('{book.Title}', '{book.Author}', '{book.Publisher}', {book.Publication_year},'{book.Language}')";
+            _dapperAdd.ExecuteSql(sql);
+            return Ok();
+        }
     }
 }

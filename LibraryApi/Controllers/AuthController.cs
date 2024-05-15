@@ -113,6 +113,18 @@ namespace LibraryApi.Controllers
             return Ok();
         }
 
+        [AllowAnonymous]
+        [HttpGet("GetJwtTokenFromCookie")]
+        public IActionResult GetJwtTokenFromCookie()
+        {
+            if (Request.Cookies.TryGetValue("token", out var token))
+            {
+                return Ok(token);
+            }
+
+            return Unauthorized();
+        }
+
 
     }
 }
