@@ -1,6 +1,6 @@
 ﻿namespace LibraryApi.Models
 {
-    public class Book
+    public class BookInfo
     {
         public int Book_id { get; set; }
         public string? Title { get; set; }
@@ -9,5 +9,6 @@
         public int Publication_year { get; set; }
         public string? Language { get; set; }
         public string? Url {  get; set; }
+        public string? Category_name { get; set; }
     }
 }
