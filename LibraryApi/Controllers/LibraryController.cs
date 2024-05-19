@@ -8,6 +8,14 @@ using Microsoft.AspNetCore.Authorization;
 using Npgsql.PostgresTypes;
 using Npgsql.Replication.PgOutput.Messages;
 
+/*
+ * TODO:
+ * -SZUKANIE W ENDPOINT GETBOOKSFULL - endpoint
+ * -ZWRACANIE ILOŒCI KSI¥¯EK W QUERY - endpoint
+ * 
+ * 
+ */
+
 namespace LibraryApi.Controllers
 {
     [ApiController]
@@ -46,8 +54,8 @@ namespace LibraryApi.Controllers
         [HttpGet("GetBooksFull")]
         public IEnumerable<BookFull> GetBooksFull()
         {
-            string sql = @$"SELECT b.book_id,title, author, publisher, publication_year, language, category_name FROM Book as b JOIN category as c on b.book_id=c.book_id
-                            JOIN category_name as cn on cn.category_name_id=c.category_name_id";
+            string sql = @$"SELECT b.book_id,title, author, publisher, publication_year, language, category_name FROM Book as b left JOIN category as c on b.book_id=c.book_id
+                            left JOIN category_name as cn on cn.category_name_id=c.category_name_id";
             List<BookInfo> books = _dapperRead.LoadData<BookInfo>(sql).ToList();
             List<BookFull> booksFull = new();
             foreach (BookInfo book in books)
@@ -56,7 +64,8 @@ namespace LibraryApi.Controllers
                 if(ind == -1)
                 {
                     booksFull.Add(new BookFull { Book_id = book.Book_id, Author = book.Author, Language = book.Language, Publication_year = book.Publication_year, Publisher = book.Publisher, Title = book.Title, Url = book.Url, Categories = new() }) ;
-                    booksFull.Last().Categories.Add(book.Category_name);
+                    if (book.Category_name != null)
+                        booksFull.Last().Categories.Add(book.Category_name);
                 }
                 else booksFull[ind].Categories.Add(book.Category_name);
             }
@@ -66,8 +75,8 @@ namespace LibraryApi.Controllers
         [HttpGet("GetBookFull")]
         public IEnumerable<BookFull> GetBookFull(int index)
         {
-            string sql = @$"SELECT b.book_id,title, author, publisher, publication_year, language, category_name FROM Book as b JOIN category as c on b.book_id=c.book_id
-                            JOIN category_name as cn on cn.category_name_id=c.category_name_id WHERE b.book_id={index}";
+            string sql = @$"SELECT b.book_id,title, author, publisher, publication_year, language, category_name FROM Book as b left JOIN category as c on b.book_id=c.book_id
+                            left JOIN category_name as cn on cn.category_name_id=c.category_name_id WHERE b.book_id={index}";
             List<BookInfo> books = _dapperRead.LoadData<BookInfo>(sql).ToList();
             List<BookFull> booksFull = new();
             foreach (BookInfo book in books)
@@ -76,7 +85,9 @@ namespace LibraryApi.Controllers
                 if (ind == -1)
                 {
                     booksFull.Add(new BookFull { Book_id = book.Book_id, Author = book.Author, Language = book.Language, Publication_year = book.Publication_year, Publisher = book.Publisher, Title = book.Title, Url = book.Url, Categories = new() });
-                    booksFull.Last().Categories.Add(book.Category_name);
+                    if (book.Category_name != null)
+                        booksFull.Last().Categories.Add(book.Category_name);
+
                 }
                 else booksFull[ind].Categories.Add(book.Category_name);
             }
