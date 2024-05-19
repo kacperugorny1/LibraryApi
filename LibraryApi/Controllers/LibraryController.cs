@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Authorization;
 using Npgsql.PostgresTypes;
+using Npgsql.Replication.PgOutput.Messages;
 
 namespace LibraryApi.Controllers
 {
@@ -132,6 +133,28 @@ namespace LibraryApi.Controllers
         public IActionResult AddCategoryToABook(int category_id, int book_id)
         {
             string sql = @$"INSERT INTO category(category_name_id, book_id) values ({category_id}, {book_id})";
+            if (_dapperAdd.ExecuteSql(sql))
+                return Ok();
+            return StatusCode(501, "Sql didn't went through");
+        }
+
+        [Authorize(Policy = "Librarian")]
+        [HttpPost("AddBookFull")]
+        public IActionResult AddBookFull(BookFullDto book)
+        {
+            string sql = @$"INSERT INTO book(title, author, publisher, publication_year, language, url)
+                            VALUES ('{book.Title}', '{book.Author}', '{book.Publisher}', {book.Publication_year},'{book.Language}','{book.Url}')";
+            if (!_dapperAdd.ExecuteSql(sql))
+                return StatusCode(501, "Failed to add book");
+            int id = _dapperAdd.LoadDataFirstOrDefault<Book>($"SELECT * FROM book WHERE title = '{book.Title}' AND author = '{book.Author}' AND publication_year = {book.Publication_year}").Book_id;
+            sql = $@"INSERT INTO category(category_name_id,book_id) values ";
+            for(int i = 0; i < book.Categories.Count; i++)
+            {
+                sql += $"({book.Categories[i]},{id})";
+                if (i < book.Categories.Count - 1)
+                    sql += ", ";
+            }
+
             if (_dapperAdd.ExecuteSql(sql))
                 return Ok();
             return StatusCode(501, "Sql didn't went through");
