@@ -11,7 +11,7 @@ namespace LibraryApi.Data
             _config = config;
         }
 
-        public IEnumerable<T> LoadData<T>(string sql)
+        public IEnumerable<T> LoadData<T>(string sql, object parameter = null)
         {
             NpgsqlConnection connection = new NpgsqlConnection(_config.GetConnectionString("SlaveConnection"));
             try

@@ -7,13 +7,17 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Authorization;
 using Npgsql.PostgresTypes;
 using Npgsql.Replication.PgOutput.Messages;
+using System.Diagnostics;
 
 /*
  * TODO:
- * -SZUKANIE W ENDPOINT GETBOOKSFULL - endpoint
- * -ZWRACANIE ILOŒCI KSI¥¯EK W QUERY - endpoint
  * 
+ * -REZERWOWANIE KSI¥¯EK - library_id -USER
  * 
+ * -WYPO¯YCZANIE ASORTYMENTU - assortment_id - LIBRIAIAN
+ * -WYŒWIETLENIE WYPO¯YCZEÑ DANEJ KSI¥¯KI - LIBRARIAN
+ * -ODBIERANIE KSI¥¯EK - LIBRIAIAN
+ * -
  */
 
 namespace LibraryApi.Controllers
@@ -36,6 +40,32 @@ namespace LibraryApi.Controllers
             string sql = @$"SELECT * FROM customer";
             return _dapperRead.LoadData<Customer>(sql);
         }
+        [HttpGet("GetAssortmentId")]
+        public IEnumerable<dynamic> GetAssortment(int book_id, int lib_id)
+        {
+            string sql = @$"select access,count(*) from assortment where book_id = {book_id} and library_id = {lib_id} GROUP BY access";
+            return _dapperRead.LoadData<dynamic>(sql);
+
+        }
+        [HttpGet("GetAssortmentFull")]
+        public IEnumerable<dynamic> GetAssortmentFull(int book_id)
+        {
+            string sql = @$"select access, library_id , count(*) from assortment where book_id = {book_id} GROUP BY access, library_id";
+            return _dapperRead.LoadData<dynamic>(sql);
+        }
+
+        [HttpGet("GetAssortmentNotGruped")]
+        public IEnumerable<dynamic> GetAssortmentNotGruped(int book_id, int lib_id)
+        {
+            string sql = @$"select assortment_id,access, library_id from assortment where book_id = {book_id} and library_id = {lib_id}";
+            return _dapperRead.LoadData<dynamic>(sql);
+        }
+        [HttpGet("GetAssortmentForLib")]
+        public IEnumerable<dynamic> GetAssortmentForLib(int book_id, int lib_id)
+        {
+            string sql = @$"select a.assortment_id, a.access, b.booking_id, br.borrowing_id from assortment as a left join booking as b ON b.assortment_id=a.assortment_id left join borrowing as br on br.assortment_id=a.assortment_id where a.book_id = {book_id} and a.library_id = {lib_id}";
+            return _dapperRead.LoadData<dynamic>(sql);
+        }
 
         [HttpGet("GetLibraries")]
         public IEnumerable<Library> GetLibraries()
@@ -54,7 +84,7 @@ namespace LibraryApi.Controllers
         [HttpGet("GetBooksFull")]
         public IEnumerable<BookFull> GetBooksFull()
         {
-            string sql = @$"SELECT b.book_id,title, author, publisher, publication_year, language, category_name FROM Book as b left JOIN category as c on b.book_id=c.book_id
+            string sql = @$"SELECT b.book_id,title, author, publisher, publication_year, language, category_name, url FROM Book as b left JOIN category as c on b.book_id=c.book_id
                             left JOIN category_name as cn on cn.category_name_id=c.category_name_id";
             List<BookInfo> books = _dapperRead.LoadData<BookInfo>(sql).ToList();
             List<BookFull> booksFull = new();
@@ -72,10 +102,40 @@ namespace LibraryApi.Controllers
             return booksFull;
         }
 
+        [HttpGet("GetBooksFullQuery")]
+        public IEnumerable<BookFull> GetBooksFullQuery(string query, int count)
+        {
+            string sql = @$"SELECT b.book_id,title, author, publisher, publication_year, language, category_name, url FROM Book as b left JOIN category as c on b.book_id=c.book_id
+                            left JOIN category_name as cn on cn.category_name_id=c.category_name_id WHERE UPPER(title) like UPPER('%{query}%') OR UPPER(author) like UPPER('%{query}%')";
+            List<BookInfo> books = _dapperRead.LoadData<BookInfo>(sql).ToList();
+            List<BookFull> booksFull = new();
+            foreach (BookInfo book in books)
+            {
+                int ind = booksFull.FindIndex(u => u.Book_id == book.Book_id);
+                if (ind == -1)
+                {
+                    if (booksFull.Count > count)
+                        break;
+                    booksFull.Add(new BookFull { Book_id = book.Book_id, Author = book.Author, Language = book.Language, Publication_year = book.Publication_year, Publisher = book.Publisher, Title = book.Title, Url = book.Url, Categories = new() });
+                    if (book.Category_name != null)
+                        booksFull.Last().Categories.Add(book.Category_name);
+                }
+                else booksFull[ind].Categories.Add(book.Category_name);
+            }
+            return booksFull;
+        }
+
+        [HttpGet("GetBooksFullQueryCount")]
+        public int GetBooksFullQueryCount(string query)
+        {
+            string sql = @$"SELECT count(*) FROM Book WHERE UPPER(title) like UPPER('%{query}%') OR UPPER(author) like UPPER('%{query}%')";
+            int books = _dapperRead.LoadDataFirstOrDefault<int>(sql);
+            return books;
+        }
         [HttpGet("GetBookFull")]
         public IEnumerable<BookFull> GetBookFull(int index)
         {
-            string sql = @$"SELECT b.book_id,title, author, publisher, publication_year, language, category_name FROM Book as b left JOIN category as c on b.book_id=c.book_id
+            string sql = @$"SELECT b.book_id,title, author, publisher, publication_year, language, category_name, url FROM Book as b left JOIN category as c on b.book_id=c.book_id
                             left JOIN category_name as cn on cn.category_name_id=c.category_name_id WHERE b.book_id={index}";
             List<BookInfo> books = _dapperRead.LoadData<BookInfo>(sql).ToList();
             List<BookFull> booksFull = new();
