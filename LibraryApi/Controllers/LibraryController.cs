@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Npgsql.PostgresTypes;
 using Npgsql.Replication.PgOutput.Messages;
 using System.Diagnostics;
+using System.Data.Common;
 
 /*
  * TODO:
@@ -38,6 +39,13 @@ namespace LibraryApi.Controllers
         public IEnumerable<Customer> GetCustomers()
         {
             string sql = @$"SELECT * FROM customer";
+            return _dapperRead.LoadData<Customer>(sql);
+        }
+
+        [HttpGet("FindCustomers")]
+        public IEnumerable<Customer> FindCustomers(string name, string lastname)
+        {
+            string sql = @$"SELECT * FROM customer WHERE UPPER(first_name) LIKE UPPER('%{name}%') AND UPPER(last_name) LIKE UPPER('%{name}%')";
             return _dapperRead.LoadData<Customer>(sql);
         }
         [HttpGet("GetAssortmentId")]
@@ -251,6 +259,74 @@ namespace LibraryApi.Controllers
             if (_dapperAdd.ExecuteSql(sql))
                 return Ok();
             return StatusCode(501, "Sql didn't went through");
+        }
+
+        [Authorize]
+        [HttpPost("BookABook")]
+        public IActionResult BookABook(int assortmentId)
+        {
+            string? userId = User.FindFirst("userId")?.Value;
+            if (userId == null) StatusCode(501, "unexcepted");
+            int customerId = _dapperAdd.LoadDataFirstOrDefault<int>($"SELECT customer_id from customer where auth_id = {userId}");
+            string sql = @$"INSERT INTO booking(assortment_id,customer_id,booking_date, booking_length)
+                            VALUES ({assortmentId}, {customerId}, '{DateTime.Now:yyyy-MM-dd}', {3})";
+            if (!_dapperAdd.ExecuteSql(sql))
+                return StatusCode(501, "Sql didn't went through");
+            //AFTER INSERT TRIGGER
+            if(!_dapperAdd.ExecuteSql($@"
+                                        UPDATE assortment 
+                                        SET access = false 
+                                        WHERE assortment_id = {assortmentId}"))
+                return StatusCode(501, "Sql didn't went through");
+            return Ok();
+        }
+
+        [Authorize(Policy = "Librarian")]
+        [HttpPost("BorrowABook")]
+        public IActionResult BorrowABook(int assortmentId, int customer_id)
+        {
+            string sql = $@"
+                INSERT INTO borrowing (assortment_id, customer_id, borrowing_date, borrowing_length) 
+                VALUES ({assortmentId}, {customer_id}, '{DateTime.Now:yyyy-MM-dd}', {14})";
+
+            if (!_dapperAdd.ExecuteSql(sql))
+                return StatusCode(501, "Sql didn't went through");
+            //AFTER INSERT TRIGGERS
+            if (!_dapperAdd.ExecuteSql($@"
+                                        UPDATE assortment 
+                                        SET access = false 
+                                        WHERE assortment_id = {assortmentId}"))
+                return StatusCode(501, "Sql didn't went through");
+            if(_dapperAdd.LoadDataFirstOrDefault<int>($@"
+                                                    SELECT COUNT(*) 
+                                                    FROM booking 
+                                                    WHERE assortment_id = {assortmentId}") > 0)
+            {
+                string deleteQuery = $@"
+                    DELETE FROM booking 
+                    WHERE assortment_id = {assortmentId}";
+
+                if (!_dapperAdd.ExecuteSql(deleteQuery))
+                    return StatusCode(501, "");
+            }
+            return Ok();
+        }
+
+        [Authorize(Policy = "Librarian")]
+        [HttpPost("UnBorrowABook")]
+        public IActionResult UnBorrowABook(int borrowingId)
+        {
+            int assortmentId = _dapperAdd.LoadDataFirstOrDefault<int>($"SELECT assortment_id from borrowing where borrowing_id = {borrowingId}");
+            string sql = @$"DELETE FROM borrowing WHERE borrowing_id = {borrowingId}";
+            if (!_dapperAdd.ExecuteSql(sql))
+                return StatusCode(501, "Sql didn't went through");
+            //after insert trigger
+            if (!_dapperAdd.ExecuteSql($@"
+                                        UPDATE assortment 
+                                        SET access = true 
+                                        WHERE assortment_id = {assortmentId}"))
+                return StatusCode(501, "Sql didn't went through");
+            return Ok();
         }
     }
 }
