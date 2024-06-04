@@ -49,7 +49,7 @@ builder.Services.AddAuthorization(options =>
 
 
 var app = builder.Build();
-app.Urls.Add("http://185.201.114.232:5001");
+//app.Urls.Add("http://185.201.114.232:5001");
 app.Urls.Add("http://localhost:5001");
 // Configure the HTTP request pipeline.
 //if (app.Environment.IsDevelopment())

@@ -26,56 +26,19 @@ namespace LibraryApi.Controllers
         [HttpPost("Register")]
         public IActionResult Register(string name, string lastname, string email, string login, string password, string confirmPassword)
         {
-            if (password != confirmPassword)
-                return StatusCode(401, "Passwords do not match");
-            Customer? cust = _dapperRead.LoadData<Customer>($"SELECT * FROM customer WHERE email='{email}'")?.FirstOrDefault();
-            Staff? admin = _dapperRead.LoadData<Staff>($"SELECT * FROM staff WHERE email='{email}'")?.FirstOrDefault();
-            Auth? creds = _dapperRead.LoadData<Auth>($"SELECT * FROM auth WHERE login='{login}'")?.FirstOrDefault();
-            if (cust != null || admin != null)
-                return StatusCode(401, "Email exists");
-            else if (creds != null)
-                return StatusCode(401, "Username exists");
-            if (_dapperAdd.ExecuteSql($"INSERT INTO auth(login,password,user_type) VALUES ('{login}','{password}','user');"))
-            {
-                int ind = _dapperAdd.LoadDataFirstOrDefault<int>($"SELECT auth_id FROM auth WHERE login='{login}'");
-
-                if (_dapperAdd.ExecuteSql(@$"INSERT INTO customer(first_name,last_name,email,auth_id) VALUES
-                                        ('{name}','{lastname}','{email}','{ind}')") == false)
-                {
-                    return StatusCode(401, "Falied to add customer");
-                }
+            string sql = $@"CALL add_customer('{login}', '{password}', '{confirmPassword}', '{email}', '{name}', '{lastname}')";
+            if(_dapperAdd.ExecuteSql(sql))
                 return Ok();
-            }
-            return StatusCode(401,"Try again");
+            return StatusCode(401, "MISTAKE");
         }
         [Authorize(Policy = "AdminOnly")]
         [HttpPost("RegisterStaff")]
         public IActionResult RegisterStaff(string name, string lastname, string email, string login, string password, string confirmPassword, int lib_id)
         {
-            if (password != confirmPassword)
-                return StatusCode(401, "Passwords do not match");
-            Customer? cust = _dapperRead.LoadData<Customer>($"SELECT * FROM customer WHERE email='{email}'")?.FirstOrDefault();
-            Staff? admin = _dapperRead.LoadData<Staff>($"SELECT * FROM staff WHERE email='{email}'")?.FirstOrDefault();
-            Auth? creds = _dapperRead.LoadData<Auth>($"SELECT * FROM auth WHERE login='{login}'")?.FirstOrDefault();
-            if (cust != null || admin != null)
-                return StatusCode(401, "Email exists");
-            else if (creds != null)
-                return StatusCode(401, "Username exists");
-            if (_dapperRead.LoadDataFirstOrDefault<Library>($"SELECT * FROM library WHERE library_id = {lib_id}") == null)
-            {
-                return StatusCode(401, "Library dont exists");
-            }
-            if (_dapperAdd.ExecuteSql($"INSERT INTO auth(login,password,user_type) VALUES ('{login}','{password}','librarian');"))
-            {
-                int ind = _dapperAdd.LoadDataFirstOrDefault<int>($"SELECT auth_id FROM auth WHERE login='{login}'");
-                if (_dapperAdd.ExecuteSql(@$"INSERT INTO staff(library_id,first_name,last_name,email,auth_id) VALUES
-                                        ({lib_id},'{name}','{lastname}','{email}','{ind}')") == false)
-                {
-                    return StatusCode(401, "Falied to add customer");
-                }
+            string sql = $@"CALL register_staff('{name}', '{lastname}', '{email}', '{login}', '{password}', '{confirmPassword}', {lib_id})";
+            if (_dapperAdd.ExecuteSql(sql))
                 return Ok();
-            }
-            return StatusCode(401, "Try again");
+            return StatusCode(401, "MISTAKE");
         }
 
 
@@ -85,7 +48,8 @@ namespace LibraryApi.Controllers
         {
             Staff? staff = null;
             bool admin = false;
-            Auth? auth = _dapperRead.LoadData<Auth>($"SELECT * FROM auth WHERE login='{login}' AND password='{password}'")?.FirstOrDefault();
+            string sql = $"EXECUTE 'SELECT * FROM auth WHERE login = $1 AND password = $2' USING '{login}', '{password}';";
+            Auth? auth = _dapperRead.LoadData<Auth>(sql)?.FirstOrDefault();
             if (auth == null)
             {
                 return StatusCode(401, "Wrong Credentials");

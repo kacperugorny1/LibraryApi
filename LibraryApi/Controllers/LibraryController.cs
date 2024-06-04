@@ -13,11 +13,6 @@ using System.Data.Common;
 /*
  * TODO:
  * 
- * -REZERWOWANIE KSI¥¯EK - library_id -USER
- * 
- * -WYPO¯YCZANIE ASORTYMENTU - assortment_id - LIBRIAIAN
- * -WYŒWIETLENIE WYPO¯YCZEÑ DANEJ KSI¥¯KI - LIBRARIAN
- * -ODBIERANIE KSI¥¯EK - LIBRIAIAN
  * -
  */
 
@@ -40,6 +35,39 @@ namespace LibraryApi.Controllers
         {
             string sql = @$"SELECT * FROM customer";
             return _dapperRead.LoadData<Customer>(sql);
+        }
+        [HttpGet("GetBorrowings")]
+        public IEnumerable<dynamic> GetBorrowings(int user_ind)
+        {
+            int customerId = _dapperAdd.LoadDataFirstOrDefault<int>($"SELECT customer_id from customer where auth_id = {user_ind}");
+            string sql = @$"SELECT * FROM borrowing where customer_id = {customerId}";
+            return _dapperRead.LoadData<dynamic>(sql);
+        }
+        [Authorize]
+        [HttpGet("GetMyBorrowings")]
+        public IEnumerable<dynamic> GetMyBorrowings()
+        {
+            string? userId = User.FindFirst("userId")?.Value;
+            int customerId = _dapperAdd.LoadDataFirstOrDefault<int>($"SELECT customer_id from customer where auth_id = {userId}");
+            string sql = @$"SELECT * FROM borrowing where customer_id = {customerId}";
+            return _dapperRead.LoadData<dynamic>(sql);
+        }
+
+        [HttpGet("GetBookings")]
+        public IEnumerable<dynamic> GetBookings(int user_ind)
+        {
+            int customerId = _dapperAdd.LoadDataFirstOrDefault<int>($"SELECT customer_id from customer where auth_id = {user_ind}");
+            string sql = @$"SELECT * FROM booking where customer_id = {customerId}";
+            return _dapperRead.LoadData<dynamic>(sql);
+        }
+        [Authorize]
+        [HttpGet("GetMyBookings")]
+        public IEnumerable<dynamic> GetMyBookings()
+        {
+            string? userId = User.FindFirst("userId")?.Value;
+            int customerId = _dapperAdd.LoadDataFirstOrDefault<int>($"SELECT customer_id from customer where auth_id = {userId}");
+            string sql = @$"SELECT * FROM booking where customer_id = {customerId}";
+            return _dapperRead.LoadData<dynamic>(sql);
         }
 
         [HttpGet("FindCustomers")]
@@ -265,6 +293,7 @@ namespace LibraryApi.Controllers
         [HttpPost("BookABook")]
         public IActionResult BookABook(int assortmentId)
         {
+            //BEFORE INSERT TRIGGER TO DO
             string? userId = User.FindFirst("userId")?.Value;
             if (userId == null) StatusCode(501, "unexcepted");
             int customerId = _dapperAdd.LoadDataFirstOrDefault<int>($"SELECT customer_id from customer where auth_id = {userId}");
@@ -280,11 +309,35 @@ namespace LibraryApi.Controllers
                 return StatusCode(501, "Sql didn't went through");
             return Ok();
         }
+        [Authorize]
+        [HttpPost("UnBookABook")]
+        public IActionResult UnBookABook(int assortmentId)
+        {
+            string? userId = User.FindFirst("userId")?.Value;
+            if (userId == null) StatusCode(501, "unexcepted");
+            int customerId = _dapperAdd.LoadDataFirstOrDefault<int>($"SELECT customer_id from customer where auth_id = {userId}");
+            string sql = @$"SELECT count(*) FROM booking where customer_id={customerId} and assortment_id = {assortmentId}";
+            if (_dapperAdd.LoadDataFirstOrDefault<int>(sql) == 0)
+                return StatusCode(501, "NO BOOKINGS");
 
+            string deleteQuery = $@"
+                    DELETE FROM booking 
+                    WHERE assortment_id = {assortmentId}";
+            if (!_dapperAdd.ExecuteSql(deleteQuery))
+                return StatusCode(501, "Couldnt delete");
+
+            if (!_dapperAdd.ExecuteSql($@"
+                                        UPDATE assortment 
+                                        SET access = true 
+                                        WHERE assortment_id = {assortmentId}"))
+                return StatusCode(501, "CHANGE ACCESS IN ASSORTMENT FAILED");
+            return Ok();
+        }
         [Authorize(Policy = "Librarian")]
         [HttpPost("BorrowABook")]
         public IActionResult BorrowABook(int assortmentId, int customer_id)
         {
+            //BEFORE INSERT TRIGGER TO DO
             string sql = $@"
                 INSERT INTO borrowing (assortment_id, customer_id, borrowing_date, borrowing_length) 
                 VALUES ({assortmentId}, {customer_id}, '{DateTime.Now:yyyy-MM-dd}', {14})";
