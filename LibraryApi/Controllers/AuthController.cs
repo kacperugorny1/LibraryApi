@@ -48,7 +48,10 @@ namespace LibraryApi.Controllers
         {
             Staff? staff = null;
             bool admin = false;
-            string sql = $"EXECUTE 'SELECT * FROM auth WHERE login = $1 AND password = $2' USING '{login}', '{password}';";
+            string sql = $@"PREPARE auth_query (text, text) AS
+                            SELECT * FROM auth WHERE login = $1 AND password = $2;
+                            EXECUTE auth_query('{login}', '{password}');
+                            DEALLOCATE auth_query;";
             Auth? auth = _dapperRead.LoadData<Auth>(sql)?.FirstOrDefault();
             if (auth == null)
             {
