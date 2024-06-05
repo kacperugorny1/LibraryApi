@@ -39,8 +39,7 @@ namespace LibraryApi.Controllers
         [HttpGet("GetBorrowings")]
         public IEnumerable<dynamic> GetBorrowings(int user_ind)
         {
-            int customerId = _dapperAdd.LoadDataFirstOrDefault<int>($"SELECT customer_id from customer where auth_id = {user_ind}");
-            string sql = @$"SELECT * FROM borrowing where customer_id = {customerId}";
+            string sql = @$"SELECT * FROM borrowing where customer_id = {user_ind}";
             return _dapperRead.LoadData<dynamic>(sql);
         }
         [Authorize]
@@ -48,7 +47,7 @@ namespace LibraryApi.Controllers
         public IEnumerable<dynamic> GetMyBorrowings()
         {
             string? userId = User.FindFirst("userId")?.Value;
-            int customerId = _dapperAdd.LoadDataFirstOrDefault<int>($"SELECT customer_id from customer where auth_id = {userId}");
+            int customerId = _dapperRead.LoadDataFirstOrDefault<int>($"SELECT customer_id from customer where auth_id = {userId}");
             string sql = @$"SELECT * FROM borrowing where customer_id = {customerId}";
             return _dapperRead.LoadData<dynamic>(sql);
         }
@@ -56,8 +55,7 @@ namespace LibraryApi.Controllers
         [HttpGet("GetBookings")]
         public IEnumerable<dynamic> GetBookings(int user_ind)
         {
-            int customerId = _dapperAdd.LoadDataFirstOrDefault<int>($"SELECT customer_id from customer where auth_id = {user_ind}");
-            string sql = @$"SELECT * FROM booking where customer_id = {customerId}";
+            string sql = @$"SELECT * FROM booking where customer_id = {user_ind}";
             return _dapperRead.LoadData<dynamic>(sql);
         }
         [Authorize]
@@ -65,7 +63,7 @@ namespace LibraryApi.Controllers
         public IEnumerable<dynamic> GetMyBookings()
         {
             string? userId = User.FindFirst("userId")?.Value;
-            int customerId = _dapperAdd.LoadDataFirstOrDefault<int>($"SELECT customer_id from customer where auth_id = {userId}");
+            int customerId = _dapperRead.LoadDataFirstOrDefault<int>($"SELECT customer_id from customer where auth_id = {userId}");
             string sql = @$"SELECT * FROM booking where customer_id = {customerId}";
             return _dapperRead.LoadData<dynamic>(sql);
         }
@@ -73,7 +71,7 @@ namespace LibraryApi.Controllers
         [HttpGet("FindCustomers")]
         public IEnumerable<Customer> FindCustomers(string name, string lastname)
         {
-            string sql = @$"SELECT * FROM customer WHERE UPPER(first_name) LIKE UPPER('%{name}%') AND UPPER(last_name) LIKE UPPER('%{name}%')";
+            string sql = @$"SELECT * FROM customer WHERE UPPER(first_name) LIKE UPPER('%{name}%') AND UPPER(last_name) LIKE UPPER('%{lastname}%')";
             return _dapperRead.LoadData<Customer>(sql);
         }
         [HttpGet("GetAssortmentId")]
@@ -100,6 +98,13 @@ namespace LibraryApi.Controllers
         public IEnumerable<dynamic> GetAssortmentForLib(int book_id, int lib_id)
         {
             string sql = @$"select a.assortment_id, a.access, b.booking_id, br.borrowing_id from assortment as a left join booking as b ON b.assortment_id=a.assortment_id left join borrowing as br on br.assortment_id=a.assortment_id where a.book_id = {book_id} and a.library_id = {lib_id}";
+            return _dapperRead.LoadData<dynamic>(sql);
+        }
+
+        [HttpGet("GetAssortmentForLibWithCustId")]
+        public IEnumerable<dynamic> GetAssortmentForLibWithCustId(int book_id, int lib_id)
+        {
+            string sql = @$"select a.assortment_id, a.access, b.booking_id,b.customer_id , br.borrowing_id, br.customer_id as customer_id_borrowing from assortment as a left join booking as b ON b.assortment_id=a.assortment_id left join borrowing as br on br.assortment_id=a.assortment_id where a.book_id = {book_id} and a.library_id = {lib_id}";
             return _dapperRead.LoadData<dynamic>(sql);
         }
 
@@ -293,19 +298,12 @@ namespace LibraryApi.Controllers
         [HttpPost("BookABook")]
         public IActionResult BookABook(int assortmentId)
         {
-            //BEFORE INSERT TRIGGER TO DO
             string? userId = User.FindFirst("userId")?.Value;
             if (userId == null) StatusCode(501, "unexcepted");
             int customerId = _dapperAdd.LoadDataFirstOrDefault<int>($"SELECT customer_id from customer where auth_id = {userId}");
             string sql = @$"INSERT INTO booking(assortment_id,customer_id,booking_date, booking_length)
                             VALUES ({assortmentId}, {customerId}, '{DateTime.Now:yyyy-MM-dd}', {3})";
             if (!_dapperAdd.ExecuteSql(sql))
-                return StatusCode(501, "Sql didn't went through");
-            //AFTER INSERT TRIGGER
-            if(!_dapperAdd.ExecuteSql($@"
-                                        UPDATE assortment 
-                                        SET access = false 
-                                        WHERE assortment_id = {assortmentId}"))
                 return StatusCode(501, "Sql didn't went through");
             return Ok();
         }
@@ -325,43 +323,18 @@ namespace LibraryApi.Controllers
                     WHERE assortment_id = {assortmentId}";
             if (!_dapperAdd.ExecuteSql(deleteQuery))
                 return StatusCode(501, "Couldnt delete");
-
-            if (!_dapperAdd.ExecuteSql($@"
-                                        UPDATE assortment 
-                                        SET access = true 
-                                        WHERE assortment_id = {assortmentId}"))
-                return StatusCode(501, "CHANGE ACCESS IN ASSORTMENT FAILED");
             return Ok();
         }
         [Authorize(Policy = "Librarian")]
         [HttpPost("BorrowABook")]
         public IActionResult BorrowABook(int assortmentId, int customer_id)
         {
-            //BEFORE INSERT TRIGGER TO DO
             string sql = $@"
                 INSERT INTO borrowing (assortment_id, customer_id, borrowing_date, borrowing_length) 
                 VALUES ({assortmentId}, {customer_id}, '{DateTime.Now:yyyy-MM-dd}', {14})";
 
             if (!_dapperAdd.ExecuteSql(sql))
                 return StatusCode(501, "Sql didn't went through");
-            //AFTER INSERT TRIGGERS
-            if (!_dapperAdd.ExecuteSql($@"
-                                        UPDATE assortment 
-                                        SET access = false 
-                                        WHERE assortment_id = {assortmentId}"))
-                return StatusCode(501, "Sql didn't went through");
-            if(_dapperAdd.LoadDataFirstOrDefault<int>($@"
-                                                    SELECT COUNT(*) 
-                                                    FROM booking 
-                                                    WHERE assortment_id = {assortmentId}") > 0)
-            {
-                string deleteQuery = $@"
-                    DELETE FROM booking 
-                    WHERE assortment_id = {assortmentId}";
-
-                if (!_dapperAdd.ExecuteSql(deleteQuery))
-                    return StatusCode(501, "");
-            }
             return Ok();
         }
 
@@ -372,12 +345,6 @@ namespace LibraryApi.Controllers
             int assortmentId = _dapperAdd.LoadDataFirstOrDefault<int>($"SELECT assortment_id from borrowing where borrowing_id = {borrowingId}");
             string sql = @$"DELETE FROM borrowing WHERE borrowing_id = {borrowingId}";
             if (!_dapperAdd.ExecuteSql(sql))
-                return StatusCode(501, "Sql didn't went through");
-            //after insert trigger
-            if (!_dapperAdd.ExecuteSql($@"
-                                        UPDATE assortment 
-                                        SET access = true 
-                                        WHERE assortment_id = {assortmentId}"))
                 return StatusCode(501, "Sql didn't went through");
             return Ok();
         }
