@@ -9,3 +9,4 @@ This repo is an API for Library project.
 ## TODO
 - SSL connection database <--> backend.
 - SQL injection protection on all endpoints.
+- Services that validates the booking time - if the booking is expired make the assortment available.
