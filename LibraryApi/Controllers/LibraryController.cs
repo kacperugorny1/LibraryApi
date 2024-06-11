@@ -36,6 +36,13 @@ namespace LibraryApi.Controllers
             string sql = @$"SELECT * FROM customer";
             return _dapperRead.LoadData<Customer>(sql);
         }
+
+        [HttpGet("GetCustomerById")]
+        public Customer GetCustomerById(int customer_id)
+        {
+            string sql = @$"SELECT * FROM customer where customer_id = {customer_id}";
+            return _dapperRead.LoadDataSingle<Customer>(sql);
+        }
         [HttpGet("GetBorrowings")]
         public IEnumerable<dynamic> GetBorrowings(int user_ind)
         {
@@ -48,7 +55,7 @@ namespace LibraryApi.Controllers
         {
             string? userId = User.FindFirst("userId")?.Value;
             int customerId = _dapperRead.LoadDataFirstOrDefault<int>($"SELECT customer_id from customer where auth_id = {userId}");
-            string sql = @$"SELECT * FROM borrowing where customer_id = {customerId}";
+            string sql = @$"SELECT * FROM borrowing as b join assortment as a on b.assortment_id=a.assortment_id join book as bo on bo.book_id=a.book_id where customer_id = {customerId}";
             return _dapperRead.LoadData<dynamic>(sql);
         }
 
@@ -64,14 +71,17 @@ namespace LibraryApi.Controllers
         {
             string? userId = User.FindFirst("userId")?.Value;
             int customerId = _dapperRead.LoadDataFirstOrDefault<int>($"SELECT customer_id from customer where auth_id = {userId}");
-            string sql = @$"SELECT * FROM booking where customer_id = {customerId}";
+            string sql = @$"SELECT * FROM booking as b join assortment as a on b.assortment_id=a.assortment_id join book as bo on bo.book_id=a.book_id where customer_id = {customerId}";
             return _dapperRead.LoadData<dynamic>(sql);
         }
 
         [HttpGet("FindCustomers")]
         public IEnumerable<Customer> FindCustomers(string name, string lastname)
         {
-            string sql = @$"SELECT * FROM customer WHERE UPPER(first_name) LIKE UPPER('%{name}%') AND UPPER(last_name) LIKE UPPER('%{lastname}%')";
+            string sql = $@"PREPARE customer_query (text, text) AS
+               SELECT * FROM customer WHERE UPPER(first_name) LIKE UPPER($1) AND UPPER(last_name) LIKE UPPER($2);
+               EXECUTE customer_query('%{name}%', '%{lastname}%');
+               DEALLOCATE customer_query;";
             return _dapperRead.LoadData<Customer>(sql);
         }
         [HttpGet("GetAssortmentId")]
@@ -146,8 +156,14 @@ namespace LibraryApi.Controllers
         [HttpGet("GetBooksFullQuery")]
         public IEnumerable<BookFull> GetBooksFullQuery(string query, int count)
         {
-            string sql = @$"SELECT b.book_id,title, author, publisher, publication_year, language, category_name, url FROM Book as b left JOIN category as c on b.book_id=c.book_id
-                            left JOIN category_name as cn on cn.category_name_id=c.category_name_id WHERE UPPER(title) like UPPER('%{query}%') OR UPPER(author) like UPPER('%{query}%')";
+            string sql = $@"PREPARE book_query (text) AS
+               SELECT b.book_id, title, author, publisher, publication_year, language, category_name, url
+               FROM Book as b
+               LEFT JOIN category as c ON b.book_id = c.book_id
+               LEFT JOIN category_name as cn ON cn.category_name_id = c.category_name_id
+               WHERE UPPER(title) LIKE UPPER($1) OR UPPER(author) LIKE UPPER($1);
+               EXECUTE book_query('%{query}%');
+               DEALLOCATE book_query;";
             List<BookInfo> books = _dapperRead.LoadData<BookInfo>(sql).ToList();
             List<BookFull> booksFull = new();
             foreach (BookInfo book in books)
@@ -169,15 +185,26 @@ namespace LibraryApi.Controllers
         [HttpGet("GetBooksFullQueryCount")]
         public int GetBooksFullQueryCount(string query)
         {
-            string sql = @$"SELECT count(*) FROM Book WHERE UPPER(title) like UPPER('%{query}%') OR UPPER(author) like UPPER('%{query}%')";
+            string sql = $@"PREPARE count_book_query (text) AS
+               SELECT count(*) FROM Book
+               WHERE UPPER(title) LIKE UPPER($1) OR UPPER(author) LIKE UPPER($1);
+               EXECUTE count_book_query('%{query}%');
+               DEALLOCATE count_book_query;";
             int books = _dapperRead.LoadDataFirstOrDefault<int>(sql);
             return books;
         }
         [HttpGet("GetBookFull")]
         public IEnumerable<BookFull> GetBookFull(int index)
         {
-            string sql = @$"SELECT b.book_id,title, author, publisher, publication_year, language, category_name, url FROM Book as b left JOIN category as c on b.book_id=c.book_id
-                            left JOIN category_name as cn on cn.category_name_id=c.category_name_id WHERE b.book_id={index}";
+            string sql = $@"PREPARE book_query_by_id (int) AS
+               SELECT b.book_id, title, author, publisher, publication_year, language, category_name, url
+               FROM Book as b
+               LEFT JOIN category as c ON b.book_id = c.book_id
+               LEFT JOIN category_name as cn ON cn.category_name_id = c.category_name_id
+               WHERE b.book_id = $1;
+               EXECUTE book_query_by_id({index});
+               DEALLOCATE book_query_by_id;";
+
             List<BookInfo> books = _dapperRead.LoadData<BookInfo>(sql).ToList();
             List<BookFull> booksFull = new();
             foreach (BookInfo book in books)
@@ -213,7 +240,10 @@ namespace LibraryApi.Controllers
         [HttpPost("AddLibrary")]
         public IActionResult AddLibrary(string name, string address)
         {
-            string sql = $@"Insert into library(name,address) values ('{name}','{address}')";
+            string sql = $@"PREPARE insert_library (text, text) AS
+               INSERT INTO library(name, address) VALUES ($1, $2);
+               EXECUTE insert_library('{name}', '{address}');
+               DEALLOCATE insert_library;";
             if (_dapperAdd.ExecuteSql(sql))
                 return Ok();
             return StatusCode(501, "Sql didn't went through");
@@ -223,7 +253,10 @@ namespace LibraryApi.Controllers
         [HttpPost("AddCategory")]
         public IActionResult addCategory(string category)
         {
-            string sql = @$"Insert INTO category_name(category_name) values('{category}')";
+            string sql = $@"PREPARE insert_category_name (text) AS
+               INSERT INTO category_name(category_name) VALUES ($1);
+               EXECUTE insert_category_name('{category}');
+               DEALLOCATE insert_category_name;";
             if (_dapperAdd.ExecuteSql(sql))
                 return Ok();
             return StatusCode(501, "Sql didn't went through");
@@ -233,8 +266,12 @@ namespace LibraryApi.Controllers
         [HttpPost("AddBook")]
         public IActionResult addBook(BookDto book)
         {
-            string sql = @$"INSERT INTO book(title, author, publisher, publication_year, language, url)
-                            VALUES ('{book.Title}', '{book.Author}', '{book.Publisher}', {book.Publication_year},'{book.Language}','{book.Url}')";
+            string sql = $@"PREPARE insert_book (text, text, text, int, text, text) AS
+               INSERT INTO book(title, author, publisher, publication_year, language, url)
+               VALUES ($1, $2, $3, $4, $5, $6);
+               EXECUTE insert_book('{book.Title}', '{book.Author}', '{book.Publisher}', {book.Publication_year}, '{book.Language}', '{book.Url}');
+               DEALLOCATE insert_book;";
+
             if (_dapperAdd.ExecuteSql(sql))
                 return Ok();
             return StatusCode(501, "Sql didn't went through");
@@ -254,8 +291,11 @@ namespace LibraryApi.Controllers
         [HttpPost("AddBookFull")]
         public IActionResult AddBookFull(BookFullDto book)
         {
-            string sql = @$"INSERT INTO book(title, author, publisher, publication_year, language, url)
-                            VALUES ('{book.Title}', '{book.Author}', '{book.Publisher}', {book.Publication_year},'{book.Language}','{book.Url}')";
+            string sql = $@"PREPARE insert_book (text, text, text, int, text, text) AS
+               INSERT INTO book(title, author, publisher, publication_year, language, url)
+               VALUES ($1, $2, $3, $4, $5, $6);
+               EXECUTE insert_book('{book.Title}', '{book.Author}', '{book.Publisher}', {book.Publication_year}, '{book.Language}', '{book.Url}');
+               DEALLOCATE insert_book;";
             if (!_dapperAdd.ExecuteSql(sql))
                 return StatusCode(501, "Failed to add book");
             int id = _dapperAdd.LoadDataFirstOrDefault<Book>($"SELECT * FROM book WHERE title = '{book.Title}' AND author = '{book.Author}' AND publication_year = {book.Publication_year}").Book_id;
