@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Configuration;
+using LibraryApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -46,6 +47,8 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
     options.AddPolicy("Librarian", policy => policy.RequireRole("Librarian"));
 });
+builder.Services.AddHostedService<ValidateBookingService>();
+builder.Services.AddScoped<ValidateBookingService>();
 
 
 var app = builder.Build();
