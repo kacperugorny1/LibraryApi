@@ -7,5 +7,5 @@ This repo is an API for Library project.
 - SQL injection protection on all endpoints.
 - Use of database mechanisms - Master slave replication, transactions, triggers, prepared queries and stored procedures.
 - Service that validates the booking time - if the booking is expired make the assortment available.
-## TODO
+- Service that once per day subtract the one day from borrowing days left
 - SSL connection database <--> backend.
