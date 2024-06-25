@@ -50,9 +50,12 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddHostedService<ValidateBookingService>();
 builder.Services.AddScoped<ValidateBookingService>();
 
+builder.Services.AddHostedService<SubtractDaysLeft>();
+builder.Services.AddScoped<SubtractDaysLeft>();
+
 
 var app = builder.Build();
-app.Urls.Add("http://185.201.114.232:5001");
+//app.Urls.Add("http://ip:5001");
 app.Urls.Add("http://localhost:5001");
 // Configure the HTTP request pipeline.
 //if (app.Environment.IsDevelopment())

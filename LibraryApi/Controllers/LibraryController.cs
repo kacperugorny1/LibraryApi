@@ -9,6 +9,7 @@ using Npgsql.PostgresTypes;
 using Npgsql.Replication.PgOutput.Messages;
 using System.Diagnostics;
 using System.Data.Common;
+using System.Xml.Linq;
 
 /*
  * TODO:
@@ -28,6 +29,24 @@ namespace LibraryApi.Controllers
         {
             _dapperAdd = new DataContextDapperMaster(config);
             _dapperRead = new DataContextDapperSlave(config);
+        }
+        [HttpGet("GetSQLINJECTION")]
+        public IActionResult GetSQLINJECTION(string prompt)
+        {
+            string sql = @$"SELECT * FROM book where title = '{prompt}'";
+            _dapperAdd.ExecuteSql(sql);
+            return Ok(sql);
+        }
+
+        [HttpGet("GetNOSQLINJECTION")]
+        public IActionResult GetNOSQLINJECTION(string prompt)
+        {
+            string sql = $@"PREPARE book_query (text) AS
+               SELECT * FROM book WHERE title = $1;
+               EXECUTE book_query('{prompt}');
+               DEALLOCATE book_query;";
+            _dapperAdd.ExecuteSql(sql);
+            return Ok(sql);
         }
 
         [HttpGet("GetCustomers")]
